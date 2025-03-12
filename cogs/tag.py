@@ -2,6 +2,7 @@ import xml.etree.ElementTree as ET
 from contextlib import suppress
 from typing import Union
 import pickle
+import string
 
 from discord import app_commands, Interaction
 from discord.ext import commands, tasks
@@ -109,6 +110,9 @@ class CommandsTag(commands.Cog):
 
     def get_code_responses(self, query: str):
         """Get responses for error codes based on the query."""
+        for character in string.punctuation.replace("-", ""):
+            query = query.replace(character, "")
+
         code_responses = []
         codes_sorted_decreasing_and_signless = sorted(
             self.codes.items(), key=lambda i: abs(int(i[0])), reverse=True)
