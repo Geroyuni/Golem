@@ -17,14 +17,17 @@ for logger in logging.root.manager.loggerDict:
 
 class GolemBot(commands.Bot):
     def __init__(self):
+        intents = discord.Intents(
+            guilds=True, messages=True, message_content=True)
+
         super().__init__(
             command_prefix=[],
             allowed_mentions=discord.AllowedMentions.none(),
-            intents=discord.Intents.default())
+            intents=intents)
 
     async def setup_hook(self):
         self.owner = (await self.application_info()).owner
-        self.cog_file_names = ("tag", "logging", "owner")
+        self.cog_file_names = ("tag", "logging", "moderation", "owner")
 
         for cog in self.cog_file_names:
             await self.load_extension(f"cogs.{cog}")
