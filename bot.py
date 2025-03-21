@@ -33,5 +33,6 @@ class GolemBot(commands.Bot):
             await self.load_extension(f"cogs.{cog}")
 
 
-bot = GolemBot()
-bot.run(token)
+if __name__ == "__main__":
+    bot = GolemBot()
+    bot.run(token)

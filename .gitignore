@@ -2,3 +2,5 @@
 __pycache__
 token_.py
 db.p
+/venv
+run.bat
