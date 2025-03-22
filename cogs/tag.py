@@ -124,7 +124,7 @@ class CommandsTag(commands.Cog):
 
                 if details["title"]:
                     code_response.append(details["desc"])
-                if details["url"]:
+                if "support.parsec.app" in details["url"]:
                     code_response.append(
                         f"[**Read the article for more details**]"
                         f"(<{details['url']}>)")
