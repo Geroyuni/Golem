@@ -123,7 +123,7 @@ class Moderation(commands.Cog):
         # Old messages are not a big concern
         now = datetime.datetime.now(datetime.timezone.utc)
         an_hour = datetime.timedelta(hours=1)
-        if message.created_at - now > an_hour:
+        if now - message.created_at > an_hour:
             return
 
         await self.report_deleted_message(message)
