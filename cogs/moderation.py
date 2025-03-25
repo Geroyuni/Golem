@@ -107,8 +107,10 @@ class Moderation(commands.Cog):
             suppress_embeds=True)
 
     @commands.Cog.listener()
-    async def on_message(self, message):
+    async def on_message(self, message: discord.Message):
         if self.is_ignored_member(message.author):
+            return
+        if message.is_system():
             return
 
         await self.handle_repost(message)
@@ -116,6 +118,8 @@ class Moderation(commands.Cog):
     @commands.Cog.listener()
     async def on_message_delete(self, message: discord.Message):
         if self.is_ignored_member(message.author):
+            return
+        if message.is_system():
             return
         if await self.is_deleted_message_in_audit_log(message):
             return
