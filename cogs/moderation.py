@@ -4,7 +4,6 @@ import datetime
 from discord.ext import commands
 import discord
 
-NOTIFICATIONS_CHANNEL = "safety_notifications"
 IGNORED_ROLES = ("Hero", "Jedi", "Parsec Team")
 
 
