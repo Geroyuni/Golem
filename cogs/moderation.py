@@ -21,24 +21,6 @@ class Moderation(commands.Cog):
             member == self.bot.user
             or any([role.name in IGNORED_ROLES for role in member.roles]))
 
-    async def is_deleted_message_in_audit_log(self, message: discord.Message):
-        """Whether a message is deleted due to moderation action."""
-        if not message.guild.me.guild_permissions.view_audit_log:
-            return False
-
-        now = datetime.datetime.now(datetime.timezone.utc)
-        two_minutes_ago = now - datetime.timedelta(minutes=2)
-        actions = (
-            discord.AuditLogAction.ban,             # ban auto bulk deletion
-            discord.AuditLogAction.message_delete,  # human moderator action
-            discord.AuditLogAction.kick,            # bot action
-            discord.AuditLogAction.member_update)   # bot action (timeout)
-
-        async for entry in message.guild.audit_logs(after=two_minutes_ago):
-            if entry.action in actions and entry.target == message.author:
-                return True
-        return False
-
     async def soft_warn(
         self, author: discord.Member, channel: discord.TextChannel, reason: str
     ):
@@ -89,23 +71,6 @@ class Moderation(commands.Cog):
 
         self.previous_message.pop(message.author.id)
 
-    async def report_deleted_message(self, message: discord.Message):
-        """Post deleted message in notifications channel."""
-        channel = discord.utils.get(
-            message.guild.channels, name=NOTIFICATIONS_CHANNEL)
-
-        if not channel:
-            return
-
-        content_in_quotes = "> " + message.content.replace("\n", "\n> ")
-
-        await channel.send(
-            f"{message.author.mention}'s message "
-            f"from {discord.utils.format_dt(message.created_at, style='t')} "
-            f"was deleted in {message.channel.mention}:"
-            f"\n{content_in_quotes or '> (empty)'}",
-            suppress_embeds=True)
-
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         if self.is_ignored_member(message.author):
@@ -114,23 +79,6 @@ class Moderation(commands.Cog):
             return
 
         await self.handle_repost(message)
-
-    @commands.Cog.listener()
-    async def on_message_delete(self, message: discord.Message):
-        if self.is_ignored_member(message.author):
-            return
-        if message.is_system():
-            return
-        if await self.is_deleted_message_in_audit_log(message):
-            return
-
-        # Old messages are not a big concern
-        now = datetime.datetime.now(datetime.timezone.utc)
-        an_hour = datetime.timedelta(hours=1)
-        if now - message.created_at > an_hour:
-            return
-
-        await self.report_deleted_message(message)
 
 
 async def setup(bot):
