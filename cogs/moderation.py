@@ -5,7 +5,7 @@ import logging
 from discord.ext import commands
 import discord
 
-NOTIFICATIONS_CHANNEL = "safety_notifications"
+NOTIFICATIONS_CHANNEL = "safety-notifications"
 TRUSTED_ROLES = ("Hero", "Jedi", "Parsec Team")
 
 
