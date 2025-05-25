@@ -129,8 +129,8 @@ class CommandsTag(commands.Cog):
                 continue
 
             if code in query.split() or code.replace("-", "") in query.split():
-                code_response = [
-                    f"## [{code}] {details['title'] or details['desc']}"]
+                header_title = details["title"] or details["desc"]
+                code_response = [f"## Error Code [{code}] {header_title}"]
 
                 if details["title"]:
                     code_response.append(details["desc"])
