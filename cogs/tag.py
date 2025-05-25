@@ -77,6 +77,8 @@ class CommandsTag(commands.Cog):
 
             url, title = url.text.replace("/en-us/", "/").split("-", 1)
             title = title.replace("-", " ")
+            title = title.replace(" t ", "'t ")  # e.g. Don t -> Don't
+            title = title.replace(" re ", "'re ")  # e.g. You re -> You're
 
             self.articles[title] = url
 
