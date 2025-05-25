@@ -110,7 +110,12 @@ class CommandsTag(commands.Cog):
 
         return custom_tag_responses
 
-    def get_code_responses(self, query: str):
+    def get_code_responses(
+            self,
+            query: str,
+            *,
+            ignore_single_digits: bool = False
+    ):
         """Get responses for error codes based on the query."""
         for character in string.punctuation.replace("-", ""):
             query = query.replace(character, "")
@@ -120,6 +125,9 @@ class CommandsTag(commands.Cog):
             self.codes.items(), key=lambda i: abs(int(i[0])), reverse=True)
 
         for code, details in codes_sorted_decreasing_and_signless:
+            if ignore_single_digits and len(code.replace("-", "")) == 1:
+                continue
+
             if code in query.split() or code.replace("-", "") in query.split():
                 code_response = [
                     f"## [{code}] {details['title'] or details['desc']}"]
@@ -155,7 +163,8 @@ class CommandsTag(commands.Cog):
             response.append(f"**[{query}](<{self.articles[query]}>)**")
         else:
             response.extend(self.get_custom_tag_responses(query))
-            response.extend(self.get_code_responses(query))
+            response.extend(self.get_code_responses(
+                query, ignore_single_digits=bool(response)))
 
         if not response:
             await itx.response.send_message("(nothing found)", ephemeral=True)
