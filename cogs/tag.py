@@ -218,7 +218,7 @@ class CommandsTag(commands.Cog):
         """Autocomplete for /tag and /edit_tag commands."""
         choices = []
 
-        for name, value in self.db.items():
+        for name, value in sorted(self.db.items()):
             if value["aliases"]:
                 aliases = ", ".join(value["aliases"])
                 choices.append(app_commands.Choice(
