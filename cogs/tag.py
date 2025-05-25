@@ -230,7 +230,7 @@ class CommandsTag(commands.Cog):
             for name in list(self.codes.keys()) + list(self.articles.keys()):
                 choices.append(app_commands.Choice(name=name[:99], value=name))
 
-        return [c for c in choices if current.lower() in c.name.lower()][:15]
+        return [c for c in choices if current.lower() in c.name.lower()][:25]
 
     @tag.autocomplete("query")
     async def tag_autocomplete(self, itx: Interaction, current: str):
