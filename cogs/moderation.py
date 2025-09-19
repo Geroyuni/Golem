@@ -127,6 +127,8 @@ class Moderation(commands.Cog):
             return
         if message.is_system():
             return
+        if not message.content:
+            return
 
         await self.handle_repost(message)
 
