@@ -1,6 +1,7 @@
 from difflib import SequenceMatcher
 import datetime
 import logging
+import re
 
 from discord.ext import commands
 import discord
@@ -14,13 +15,21 @@ class Moderation(commands.Cog):
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.previous_message = {}
-        self.warned_previously = set()
+        self.previous_messages = {}
+        self.previous_warnings = {}
 
     def is_trusted_member(self, member: discord.Member):
         return (
             member == self.bot.user
             or any([role.name in TRUSTED_ROLES for role in member.roles]))
+
+    async def message_still_exists(self, message: discord.Message):
+        try:
+            await message.channel.fetch_message(message.id)
+        except discord.NotFound:
+            return False
+        else:
+            return True
 
     async def is_deleted_message_in_audit_log(self, message: discord.Message):
         """Whether a message is deleted due to moderation action."""
@@ -44,37 +53,55 @@ class Moderation(commands.Cog):
         self, author: discord.Member, channel: discord.TextChannel, reason: str
     ):
         """Give one warning and timeout, or kick if warned previously."""
-        if author in self.warned_previously:
+        if reason not in self.previous_warnings:
+            self.previous_warnings[reason] = set()
+
+        if author in self.previous_warnings[reason]:
             await author.kick(reason=reason)
         else:
-            await author.timeout(
-                datetime.timedelta(minutes=1), reason=reason)
+            await author.timeout(datetime.timedelta(minutes=1), reason=reason)
             await channel.send(
-                reason,
+                reason + ("\n" * 6) + "-# blank space for discord popup",
                 allowed_mentions=discord.AllowedMentions(users=[author]),
-                delete_after=20)
-            self.warned_previously.add(author)
+                delete_after=30)
+            self.previous_warnings[reason].add(author)
 
         # Allow user to post once next time rather than consider a duplicate
-        self.previous_message.pop(author, None)
+        self.previous_messages.pop(author, None)
 
-    async def handle_repost(self, message: discord.Message):
+    async def handle_reposts(self, message: discord.Message):
         """Detect and deal with reposts as is appropriate."""
-        previous = self.previous_message.get(message.author.id)
+        previous_messages = self.previous_messages.get(message.author.id, [])
         twenty_minutes = datetime.timedelta(minutes=20)
+        reposts = 0
 
-        is_reposted_message = (
-            previous
-            and SequenceMatcher(
-                None, message.content, previous.content).ratio() > 0.9
-            and message.created_at - previous.created_at < twenty_minutes
-            and await previous.channel.fetch_message(previous.id))
+        for previous in reversed(previous_messages):
+            is_repost = (
+                SequenceMatcher(
+                    None, message.content, previous.content).ratio() > 0.9
+                and message.created_at - previous.created_at < twenty_minutes
+                and await self.message_still_exists(previous))
 
-        if not is_reposted_message:
-            self.previous_message[message.author.id] = message
+            if not is_repost:
+                break
+
+            reposts += 1
+
+        channels_posted = set(m.channel for m in previous_messages + [message])
+        threshold_met = (
+            (reposts == 2)
+            or (reposts and len(channels_posted) > 1)
+            or (reposts and len(message.content) > 15))
+
+        if not threshold_met:
+            if not self.previous_messages.get(message.author.id):
+                self.previous_messages[message.author.id] = []
+
+            self.previous_messages[message.author.id].append(message)
+            del self.previous_messages[message.author.id][:-2]
             return
 
-        if previous.channel != message.channel:
+        if len(channels_posted) > 1:
             reason = (
                 f"{message.author.mention} don't post the same message "
                 "in two channels. Read <#380811257973833738> to find where "
@@ -82,13 +109,15 @@ class Moderation(commands.Cog):
         else:
             reason = (
                 f"{message.author.mention} don't post the same message "
-                "twice in a short period of time")
+                "multiple times in a short period of time")
 
         await self.soft_warn(message.author, message.channel, reason)
         await message.delete()
-        await previous.delete()
 
-        self.previous_message.pop(message.author.id)
+        for previous in previous_messages:
+            await previous.delete()
+
+        self.previous_messages.pop(message.author.id)
 
     async def report_suspicious_message(
         self, message: discord.Message, targeted_member: discord.Member
@@ -130,7 +159,7 @@ class Moderation(commands.Cog):
         if not message.content:
             return
 
-        await self.handle_repost(message)
+        await self.handle_reposts(message)
 
     @commands.Cog.listener()
     async def on_message_delete(self, message: discord.Message):
