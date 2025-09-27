@@ -141,14 +141,23 @@ class Moderation(commands.Cog):
         """
         now = datetime.datetime.now(datetime.timezone.utc)
         five_minutes = datetime.timedelta(minutes=5)
-        targeted_member = message.mentions[0] if message.mentions else None
+        links = re.findall(r"https?://", message.content)
+        mention_ids = re.findall(r"<@!?(\d{17,20})>", message.content)
+
+        if mention_ids:
+            try:
+                targeted_member = (
+                    await message.guild.fetch_member(mention_ids[0]))
+            except discord.NotFound:
+                targeted_member = None
 
         is_considered_normal = (
             self.is_trusted_member(message.author)
             or message.is_system()
-            or await self.is_deleted_message_in_audit_log(message)
+            or not links
+            or not targeted_member
             or now - message.created_at > five_minutes
-            or len(message.mentions) != 1
+            or await self.is_deleted_message_in_audit_log(message)
             or self.is_trusted_member(targeted_member))
 
         if not is_considered_normal:
