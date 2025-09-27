@@ -172,13 +172,14 @@ class Moderation(commands.Cog):
         five_minutes = datetime.timedelta(minutes=5)
         links = re.findall(r"https?://", message.content)
         mention_ids = re.findall(r"<@!?(\d{17,20})>", message.content)
+        targeted_member = None
 
         if mention_ids:
             try:
                 targeted_member = (
                     await message.guild.fetch_member(mention_ids[0]))
             except discord.NotFound:
-                targeted_member = None
+                pass
 
         is_considered_normal = (
             self.is_trusted_member(message.author)
