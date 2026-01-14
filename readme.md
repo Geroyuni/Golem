@@ -1,5 +1,5 @@
 # Golem
-Simple bot that provides support commands for the Parsec server.
+Bot that provides support commands and moderation for the Parsec server.
 
 ## Running your own instance
 ### Requirements
