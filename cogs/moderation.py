@@ -7,7 +7,9 @@ from discord.ext import commands
 import discord
 
 NOTIFICATIONS_CHANNEL = "safety-notifications"
+HIGHER_SUPPORT_MODERATION_CHANNELS = ("general", "help", "tech-talk")
 TRUSTED_ROLES = ("Hero", "Jedi", "Parsec Team")
+TRUSTED_LINKS = ("parsec.app", "parsecgaming.com", "parsec.gg", "unity.com")
 
 
 class Moderation(commands.Cog):
@@ -17,11 +19,43 @@ class Moderation(commands.Cog):
         self.bot = bot
         self.previous_messages = {}
         self.previous_warnings = {}
+        self.warned_against_user_previously = set()
 
     def is_trusted_member(self, member: discord.Member):
         return (
             member == self.bot.user
             or any([role.name in TRUSTED_ROLES for role in member.roles]))
+
+    @staticmethod
+    def has_links(content: str):
+        """Return if there are links in a given content.
+
+        This is a somewhat basic implementation, could be improved later."""
+        cleaned_content = content.replace("\n", "").replace("> ", "").lower()
+        return bool(re.findall(r"https?:", cleaned_content))
+
+    async def fetch_mentions(
+        self,
+        message: discord.Message,
+        exclude_trusted: bool = False,
+        exclude_untrusted: bool = False
+    ):
+        mentioned_members = set(message.mentions)
+
+        for member_id in re.findall(r"<@!?(\d{17,20})>", message.content):
+            try:
+                mentioned_members.add(
+                    await message.guild.fetch_member(member_id))
+            except discord.NotFound:
+                pass
+
+        for member in list(mentioned_members):
+            if exclude_trusted and self.is_trusted_member(member):
+                mentioned_members.remove(member)
+            if exclude_untrusted and not self.is_trusted_member(member):
+                mentioned_members.remove(member)
+
+        return mentioned_members
 
     async def message_still_exists(self, message: discord.Message):
         try:
@@ -71,6 +105,13 @@ class Moderation(commands.Cog):
 
     async def handle_reposts(self, message: discord.Message):
         """Detect and deal with reposts as is appropriate."""
+        if self.is_trusted_member(message.author):
+            return False
+        if message.is_system():
+            return False
+        if not message.content:
+            return False
+
         previous_messages = self.previous_messages.get(message.author.id, [])
         twenty_minutes = datetime.timedelta(minutes=20)
         reposts = 0
@@ -99,7 +140,7 @@ class Moderation(commands.Cog):
 
             self.previous_messages[message.author.id].append(message)
             del self.previous_messages[message.author.id][:-2]
-            return
+            return False
 
         if len(channels_posted) > 1:
             reason = (
@@ -118,21 +159,30 @@ class Moderation(commands.Cog):
             await previous.delete()
 
         self.previous_messages.pop(message.author.id)
+        return True
 
-    async def report_suspicious_message(
-        self, message: discord.Message, targeted_member: discord.Member
-    ):
-        """Log and warn about deleted message."""
-        logging.info(
+    async def handle_logging_message_deletion(self, message: discord.Message):
+        """Log some deleted messages to check for shady behavior."""
+        now = datetime.datetime.now(datetime.timezone.utc)
+        twenty_minutes = datetime.timedelta(minutes=20)
+
+        should_not_log = (
+            message.channel.name not in HIGHER_SUPPORT_MODERATION_CHANNELS
+            or self.is_trusted_member(message.author)
+            or message.is_system()
+            or now - message.created_at > twenty_minutes
+            or await self.is_deleted_message_in_audit_log(message)
+            or not (
+                self.has_links(message.content)
+                or await self.fetch_mentions(message, exclude_trusted=True)
+            )
+        )
+
+        if should_not_log:
+            return
+
+        logging.warning(
             f"Suspicious message by {message.author}: {message.content}")
-
-        await message.channel.send(
-            f"{targeted_member.mention} if you have been directed by a user "
-            f"to get help elsewhere, you may be getting tricked. "
-            f"We will never ask you to create a ticket on a different "
-            f"Discord server (this is the only official server), and our "
-            f"official site is <https://parsec.app>.",
-            allowed_mentions=discord.AllowedMentions(users=[targeted_member]))
 
         channel = discord.utils.get(
             message.guild.channels, name=NOTIFICATIONS_CHANNEL)
@@ -140,58 +190,58 @@ class Moderation(commands.Cog):
         if not channel:
             return
 
-        content_in_quotes = "> " + message.content.replace("\n", "\n> ")
-
         await channel.send(
             f"{message.author.mention}'s message "
             f"from {discord.utils.format_dt(message.created_at, style='t')} "
             f"was deleted in {message.channel.mention}:"
-            f"\n{content_in_quotes or '> (empty)'}",
+            f"\n```{message.content or '(empty)'}```",
             suppress_embeds=True)
+
+    async def handle_link_reminder(self, message: discord.Message):
+        """Remind users link risks if any are posted by untrusted users."""
+        should_not_remind = (
+            message.channel.name not in HIGHER_SUPPORT_MODERATION_CHANNELS
+            or self.is_trusted_member(message.author)
+            or message.is_system()
+            or message.author in self.warned_against_user_previously
+            or not self.has_links(message.content)
+            or any([link in message.content.lower() for link in TRUSTED_LINKS])
+            or not await self.fetch_mentions(message, exclude_trusted=True))
+
+        if should_not_remind:
+            return
+
+        await message.channel.send(
+            "**Reminder**: We will never ask you to create a help ticket "
+            "on a different Discord server or unofficial site, and our "
+            "official site is <https://parsec.app>. Be weary of shady "
+            "websites and notify `@ModTag` if there are any concerns.")
+
+        self.warned_against_user_previously.add(message.author)
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
-        """Pass each message to the repost handler."""
-        if self.is_trusted_member(message.author):
-            return
-        if message.is_system():
-            return
-        if not message.content:
+        has_reposted = await self.handle_reposts(message)
+
+        if not has_reposted:
             return
 
-        await self.handle_reposts(message)
+        await self.handle_link_reminder(message)
+
+    @commands.Cog.listener()
+    async def on_message_edit(self, _, after: discord.Message):
+        now = datetime.datetime.now(datetime.timezone.utc)
+        ten_minutes = datetime.timedelta(minutes=10)
+
+        if now - after.created_at > ten_minutes:
+            return
+
+        await self.handle_link_reminder(after)
 
     @commands.Cog.listener()
     async def on_message_delete(self, message: discord.Message):
-        """Check whether message deletion is suspicious.
-
-        Message deletions that are quick and mention one user may be
-        attempting to trick said user into getting help via fake tickets.
-        """
-        now = datetime.datetime.now(datetime.timezone.utc)
-        five_minutes = datetime.timedelta(minutes=5)
-        links = re.findall(r"https?://", message.content)
-        mention_ids = re.findall(r"<@!?(\d{17,20})>", message.content)
-        targeted_member = None
-
-        if mention_ids:
-            try:
-                targeted_member = (
-                    await message.guild.fetch_member(mention_ids[0]))
-            except discord.NotFound:
-                pass
-
-        is_considered_normal = (
-            self.is_trusted_member(message.author)
-            or message.is_system()
-            or not links
-            or not targeted_member
-            or now - message.created_at > five_minutes
-            or await self.is_deleted_message_in_audit_log(message)
-            or self.is_trusted_member(targeted_member))
-
-        if not is_considered_normal:
-            await self.report_suspicious_message(message, targeted_member)
+        logging.info(f"{message.author} deleted: {message.content}")
+        await self.handle_logging_message_deletion(message)
 
 
 async def setup(bot):
