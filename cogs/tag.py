@@ -179,8 +179,15 @@ class CommandsTag(commands.Cog):
             response.insert(0, f"-# (for {mention_user.mention})")
             allowed_mentions.users = [mention_user]
 
+        joint_response = "\n".join(response)
+
+        if len(joint_response) >= 2000:
+            await itx.response.send_message(
+                "the tags found ended up too long to post!", ephemeral=True)
+            return
+
         await itx.response.send_message(
-            "\n".join(response),
+            joint_response,
             ephemeral=private,
             allowed_mentions=allowed_mentions)
 
