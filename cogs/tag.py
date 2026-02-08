@@ -14,7 +14,6 @@ URL_CODES_JSON = "https://public.parsec.app/data/errors/codes.json"
 URL_SITEMAP_XML = "https://support.parsec.app/hc/sitemap.xml"
 USERS_WITH_EDIT_PERMISSION = (
     124207277174423552,  # Kodikuu
-    141336932213981184,  # Skippy
     289887222310764545)  # Borgo
 
 
