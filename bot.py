@@ -27,7 +27,8 @@ class GolemBot(commands.Bot):
 
     async def setup_hook(self):
         self.owner = (await self.application_info()).owner
-        self.cog_file_names = ("tag", "logging", "moderation", "owner")
+        self.cog_file_names = (
+            "tag", "logging", "moderation", "owner", "log")
 
         for cog in self.cog_file_names:
             await self.load_extension(f"cogs.{cog}")
