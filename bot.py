@@ -5,6 +5,8 @@ import discord
 
 from token_ import token
 
+TRUSTED_ROLES = ("Hero", "Jedi", "Parsec Team")
+
 
 logging.basicConfig(
     level=logging.INFO,
@@ -24,6 +26,11 @@ class GolemBot(commands.Bot):
             command_prefix=[],
             allowed_mentions=discord.AllowedMentions.none(),
             intents=intents)
+
+    def is_trusted_member(self, member: discord.Member):
+        return (
+            member == self.user
+            or any([role.name in TRUSTED_ROLES for role in member.roles]))
 
     async def setup_hook(self):
         self.owner = (await self.application_info()).owner

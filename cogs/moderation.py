@@ -8,7 +8,6 @@ import discord
 
 NOTIFICATIONS_CHANNEL = "safety-notifications"
 HIGHER_SUPPORT_MODERATION_CHANNELS = ("general", "help", "tech-talk")
-TRUSTED_ROLES = ("Hero", "Jedi", "Parsec Team")
 TRUSTED_LINKS = ("parsec.app", "parsecgaming.com", "parsec.gg", "unity.com")
 
 
@@ -20,11 +19,6 @@ class Moderation(commands.Cog):
         self.previous_messages = {}
         self.previous_warnings = {}
         self.warned_against_user_previously = set()
-
-    def is_trusted_member(self, member: discord.Member):
-        return (
-            member == self.bot.user
-            or any([role.name in TRUSTED_ROLES for role in member.roles]))
 
     @staticmethod
     def has_links(content: str):
@@ -50,9 +44,9 @@ class Moderation(commands.Cog):
                 pass
 
         for member in list(mentioned_members):
-            if exclude_trusted and self.is_trusted_member(member):
+            if exclude_trusted and self.bot.is_trusted_member(member):
                 mentioned_members.remove(member)
-            if exclude_untrusted and not self.is_trusted_member(member):
+            if exclude_untrusted and not self.bot.is_trusted_member(member):
                 mentioned_members.remove(member)
 
         return mentioned_members
@@ -105,7 +99,7 @@ class Moderation(commands.Cog):
 
     async def handle_reposts(self, message: discord.Message):
         """Detect and deal with reposts as is appropriate."""
-        if self.is_trusted_member(message.author):
+        if self.bot.is_trusted_member(message.author):
             return False
         if message.is_system():
             return False
@@ -168,7 +162,7 @@ class Moderation(commands.Cog):
 
         should_not_log = (
             message.channel.name not in HIGHER_SUPPORT_MODERATION_CHANNELS
-            or self.is_trusted_member(message.author)
+            or self.bot.is_trusted_member(message.author)
             or message.is_system()
             or now - message.created_at > twenty_minutes
             or await self.is_deleted_message_in_audit_log(message)
@@ -201,7 +195,7 @@ class Moderation(commands.Cog):
         """Remind users link risks if any are posted by untrusted users."""
         should_not_remind = (
             message.channel.name not in HIGHER_SUPPORT_MODERATION_CHANNELS
-            or self.is_trusted_member(message.author)
+            or self.bot.is_trusted_member(message.author)
             or message.is_system()
             or message.author in self.warned_against_user_previously
             or not self.has_links(message.content)
