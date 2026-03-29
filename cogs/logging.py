@@ -35,6 +35,14 @@ class Logging(commands.Cog):
         location = f"{itx.guild.name}/#{itx.channel}" if itx.guild else "DM"
         logging.info(f"{itx.user} ({location}): {itx.command.name}")
 
+    @commands.Cog.listener()
+    async def on_message_delete(self, msg: discord.Message):
+        if msg.author == self.bot.user:
+            return
+
+        location = f"{msg.guild}/#{msg.channel}" if msg.guild else "DM"
+        logging.info(f"{msg.author} ({location}) deleted: {msg.content}")
+
     async def on_app_command_error(self, itx: Interaction, e: AppCommandError):
         """Error handling for slash commands."""
         if hasattr(e, "original"):

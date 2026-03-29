@@ -240,7 +240,6 @@ class Moderation(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message_delete(self, message: discord.Message):
-        logging.info(f"{message.author} deleted: {message.content}")
         await self.handle_logging_message_deletion(message)
 
 
