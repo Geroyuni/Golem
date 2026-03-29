@@ -103,17 +103,22 @@ class Moderation(commands.Cog):
             return False
         if message.is_system():
             return False
-        if not message.content:
-            return False
 
         previous_messages = self.previous_messages.get(message.author.id, [])
         twenty_minutes = datetime.timedelta(minutes=20)
         reposts = 0
 
         for previous in reversed(previous_messages):
+            matcher = SequenceMatcher(None, message.content, previous.content)
+            content_is_similar = message.content and matcher.ratio() > 0.9
+            zipped_attachments = zip(message.attachments, previous.attachments)
+            attachments_are_similar = (
+                message.attachments
+                and len(message.attachments) == len(previous.attachments)
+                and all([a.size == b.size for a, b in zipped_attachments]))
+
             is_repost = (
-                SequenceMatcher(
-                    None, message.content, previous.content).ratio() > 0.9
+                (content_is_similar or attachments_are_similar)
                 and message.created_at - previous.created_at < twenty_minutes
                 and await self.message_still_exists(previous))
 
@@ -126,7 +131,8 @@ class Moderation(commands.Cog):
         threshold_met = (
             (reposts == 2)
             or (reposts and len(channels_posted) > 1)
-            or (reposts and len(message.content) > 15))
+            or (reposts and message.content and len(message.content) > 15)
+            or (reposts and message.attachments))
 
         if not threshold_met:
             if not self.previous_messages.get(message.author.id):
