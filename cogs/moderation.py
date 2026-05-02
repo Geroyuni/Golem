@@ -21,10 +21,11 @@ class Moderation(commands.Cog):
         self.warned_against_user_previously = set()
 
     @staticmethod
-    def has_links(content: str):
-        """Return if there are links in a given content.
+    def has_links(content: str, advanced_lookup: bool = False):
+        """Return if there are links in a given content."""
+        if not advanced_lookup:
+            return bool(re.findall(r"https?:", content))
 
-        This is a somewhat basic implementation, could be improved later."""
         cleaned_content = content.replace("\n", "").replace("> ", "").lower()
         return bool(re.findall(r"https?:", cleaned_content))
 
@@ -161,6 +162,19 @@ class Moderation(commands.Cog):
         self.previous_messages.pop(message.author.id)
         return True
 
+    async def handle_obfuscated_links(self, message: discord.Message):
+        """Deal with messages that are trying to hide its links."""
+        has_obfuscated_links = (
+            not self.has_links(message.content)
+            and self.has_links(message.content, advanced_lookup=True))
+
+        if not has_obfuscated_links:
+            return False
+
+        await message.delete()
+        await message.author.kick(reason="Obfuscated links detected")
+        return True
+
     async def handle_logging_message_deletion(self, message: discord.Message):
         """Log some deleted messages to check for shady behavior."""
         now = datetime.datetime.now(datetime.timezone.utc)
@@ -221,9 +235,9 @@ class Moderation(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
-        has_reposted = await self.handle_reposts(message)
-
-        if not has_reposted:
+        if await self.handle_obfuscated_links(message):
+            return
+        if await self.handle_reposts(message):
             return
 
         await self.handle_link_reminder(message)
@@ -234,6 +248,8 @@ class Moderation(commands.Cog):
         ten_minutes = datetime.timedelta(minutes=10)
 
         if now - after.created_at > ten_minutes:
+            return
+        if await self.handle_obfuscated_links(after):
             return
 
         await self.handle_link_reminder(after)
